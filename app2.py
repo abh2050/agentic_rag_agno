@@ -10,138 +10,126 @@ from agno.tools.yfinance import YFinanceTools
 # Load environment variables
 load_dotenv()
 
-# Configure Gemini
+# --- API Configuration Section ---
 gemini_api_key = os.environ.get("GEMINI_API_KEY")
+
 if not gemini_api_key:
-    st.error("Missing GEMINI_API_KEY in environment variables")
+    st.error("GEMINI_API_KEY not found in environment variables")
     st.stop()
+
+# Configure both global and Agno-specific settings
 genai.configure(api_key=gemini_api_key)
 
-# Initialize agents with Gemini 2.0 Flash
+# Test API connection first
+try:
+    test_model = genai.GenerativeModel('gemini-2.0-flash')
+    test_response = test_model.generate_content("Connection test")
+except Exception as e:
+    st.error(f"API Connection Failed: {str(e)}")
+    st.stop()
+
+# --- Agent Setup ---
 web_agent = Agent(
-    name="Web Agent",
-    role="Search the web for information",
-    model=Gemini(id="gemini-2.0-flash"),
+    name="Web Researcher",
+    role="Gather real-time web data",
+    model=Gemini(
+        id="gemini-2.0-flash",
+        api_key=gemini_api_key  # Explicit key passing
+    ),
     tools=[DuckDuckGoTools()],
-    instructions="Always include sources with direct URLs",
+    instructions="Always cite sources with [1] notation",
     show_tool_calls=True,
     markdown=True,
 )
 
 finance_agent = Agent(
-    name="Finance Agent",
-    role="Get financial data",
-    model=Gemini(id="gemini-2.0-flash"),
+    name="Financial Analyst",
+    role="Analyze stock market data",
+    model=Gemini(
+        id="gemini-2.0-flash",
+        api_key=gemini_api_key  # Explicit key passing
+    ),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True)],
-    instructions="Use markdown tables with ▲/▼ trend indicators",
+    instructions="Format numbers with $ symbols and ▲/▼ indicators",
     show_tool_calls=True,
     markdown=True,
 )
 
 agent_team = Agent(
     team=[web_agent, finance_agent],
-    model=Gemini(id="gemini-2.0-flash"),
+    model=Gemini(
+        id="gemini-2.0-flash",
+        api_key=gemini_api_key  # Explicit key passing
+    ),
     instructions=[
-        "Combine real-time web data with financial metrics",
-        "Always include: [Source] annotations for web data",
-        "Format currency values as $X.XX",
-        "Use 💹 and 🔻 emojis for positive/negative trends"
+        "Combine web and financial data for comprehensive analysis",
+        "Use 💹 for positive trends and 🔻 for negative ones",
+        "Include timestamps for all data points"
     ],
     show_tool_calls=True,
     markdown=True,
 )
 
-# Streamlit UI Configuration
-st.set_page_config(page_title="AI Financial Analyst", page_icon="💸", layout="wide")
-st.title("💎 Gemini 2.0 Flash Financial Analyst")
-st.markdown("""
-    <style>
-    .stTextArea textarea {font-size: 18px !important; border-radius: 12px;}
-    div[data-baseweb="input"] {border-radius: 12px !important;}
-    .stButton button {border-radius: 12px; padding: 10px 25px;}
-    </style>
-    """, unsafe_allow_html=True)
+# --- Streamlit UI ---
+st.set_page_config(page_title="AI Financial Analyst", page_icon="💹", layout="wide")
+st.title("📈 Gemini 2.0 Flash Financial Analyst")
 
-# Agent Monitoring Section
-with st.expander("🔍 Live Agent Activity", expanded=True):
-    activity_container = st.container()
+# Activity Monitor
+activity_log = st.expander("🔍 Live Agent Activity", expanded=True)
 
-# Enhanced Callback System
-class LiveAgentMonitor:
+class ActivityTracker:
     def __init__(self, container):
         self.container = container
-        self.session = {
-            "thoughts": [],
-            "actions": [],
-            "results": []
-        }
-
-    def on_thought(self, agent_name, thought):
-        entry = f"🧠 **{agent_name}**\n```\n{thought}\n```"
-        self.session["thoughts"].append(entry)
+        
+    def on_thought(self, agent, thought):
         with self.container:
-            st.markdown(entry)
-
-    def on_action(self, agent_name, action, input_data):
-        entry = f"⚡ **{agent_name}** | {action}\n`Input:` {input_data}"
-        self.session["actions"].append(entry)
+            st.markdown(f"### 🧠 {agent} Thinking")
+            st.code(thought)
+            
+    def on_action(self, agent, action, inputs):
         with self.container:
-            st.markdown(entry)
-
-    def on_action_result(self, agent_name, result):
-        entry = f"✅ **{agent_name} Result**\n```json\n{result}\n```"
-        self.session["results"].append(entry)
+            st.markdown(f"#### ⚡ {agent} Action: {action}")
+            st.json(inputs)
+            
+    def on_result(self, agent, result):
         with self.container:
-            st.markdown(entry)
+            st.markdown(f"#### ✅ {agent} Result")
+            st.markdown(result)
 
-monitor = LiveAgentMonitor(activity_container)
+tracker = ActivityTracker(activity_log)
 
-# User Input Panel
+# User Interface
 query = st.text_area(
-    "📩 Your Financial Query:",
-    "Analyze AMD's competitive position in AI chips market including stock performance and recent news",
-    height=130
+    "📝 Enter your financial query:",
+    "Analyze NVIDIA's current market position in AI chips including stock performance and recent news",
+    height=100
 )
 
-# Control Panel
-col1, col2, col3 = st.columns(3)
-with col1:
-    temp = st.slider("🌡️ Model Creativity", 0.0, 1.0, 0.8)
-with col2:
-    depth = st.selectbox("🔎 Analysis Depth", ["Quick Scan", "Detailed Report", "Deep Analysis"])
-with col3:
-    st.markdown("###")
-    run_analysis = st.button("🚀 Execute Analysis", use_container_width=True)
-
-if run_analysis:
+if st.button("🚀 Generate Analysis", type="primary"):
     if not query.strip():
-        st.warning("Please enter a financial query")
+        st.warning("Please enter a valid query")
     else:
-        with st.spinner("🛠️ Deploying AI Analysts..."):
+        with st.spinner("🧠 Analyzing financial data..."):
             try:
                 response = agent_team.run(
                     query,
-                    callbacks=[monitor],
-                    temperature=temp,
-                    max_tokens=4096 if "Deep" in depth else 2048
+                    callbacks=[tracker],
+                    temperature=0.7,
+                    max_tokens=3000
                 )
                 
                 st.markdown("---")
-                st.subheader("📜 Final Analysis Report")
+                st.subheader("📊 Analysis Report")
                 st.markdown(response.content.replace("$", "\$"))
                 
-                st.markdown("---")
-                with st.expander("📦 Raw Session Data"):
-                    st.json(monitor.session)
-                
             except Exception as e:
-                st.error(f"❌ Analysis Failed: {str(e)}")
+                st.error(f"Analysis failed: {str(e)}")
                 st.stop()
 
 # Footer
 st.markdown("---")
 st.markdown("""
     <div style="text-align: center; color: #666;">
-    Gemini 2.0 Flash Financial Analyst v1.0 | Real-time market data + AI analysis
+    Powered by Gemini 2.0 Flash | Real-time market analysis
     </div>
     """, unsafe_allow_html=True)
