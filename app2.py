@@ -10,16 +10,17 @@ from agno.tools.yfinance import YFinanceTools
 # Load environment variables
 load_dotenv()
 
-# Check if the Gemini API key is set in the environment
-if "GEMINI_API_KEY" not in os.environ:
-    st.error("Gemini API key is not set in the environment. Please set the GEMINI_API_KEY environment variable.")
-    st.stop()
+# Update your Gemini model initialization to explicitly pass the API key
+from agno.models.google import Gemini
 
-# Initialize agents
+# Get the API key from environment variables
+gemini_api_key = os.environ.get("GEMINI_API_KEY")
+
+# Initialize models with the API key
 web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",
-    model=Gemini(id="gemini-2.0-flash"),  # Updated Gemini model version
+    model=Gemini(id="gemini-2.0-flash", api_key=gemini_api_key),  # Pass API key here
     tools=[DuckDuckGoTools()],
     instructions="Always include sources",
     show_tool_calls=True,
@@ -29,7 +30,7 @@ web_agent = Agent(
 finance_agent = Agent(
     name="Finance Agent",
     role="Get financial data",
-    model=Gemini(id="gemini-pro"),  # Updated Gemini model version
+    model=Gemini(id="gemini-pro", api_key=gemini_api_key),  # Pass API key here
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True)],
     instructions="Use tables to display data",
     show_tool_calls=True,
@@ -38,7 +39,7 @@ finance_agent = Agent(
 
 agent_team = Agent(
     team=[web_agent, finance_agent],
-    model=Gemini(id="gemini-pro"),  # Updated Gemini model version
+    model=Gemini(id="gemini-pro", api_key=gemini_api_key),  # Pass API key here
     instructions=["Always include sources", "Use tables to display data"],
     show_tool_calls=True,
     markdown=True,
