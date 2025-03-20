@@ -95,6 +95,8 @@ The script initializes AI agents using Agno and defines their roles and tools:
    - The **Web Agent** fetches relevant articles and reports.
    - The **Finance Agent** retrieves stock performance and analyst insights.
    - Results are presented with sources and tables.
+  
+   ![Output](https://github.com/abh2050/agentic_rag_agno/blob/main/pic.png)
 
 ## Installation
 
