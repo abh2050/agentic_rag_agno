@@ -1,4 +1,5 @@
 # Agno-Based AI Agents
+![Financial Agent](https://i.ytimg.com/vi/XN6dSSx6Ehg/maxresdefault.jpg)
 
 ## Overview
 
@@ -106,7 +107,7 @@ The script initializes AI agents using Agno and defines their roles and tools:
 ### Setup
 1. Clone the repository:
    ```bash
-   git clone <repository_url>
+   git clone https://github.com/abh2050/agentic_rag_agno.git
    cd <repository_directory>
    ```
 2. Install dependencies:
@@ -144,7 +145,3 @@ This will:
 ## License
 
 This project is open-source. Ensure compliance with API usage policies.
-
-## Contributors
-
-- [Your Name]
