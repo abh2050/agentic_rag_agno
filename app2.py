@@ -10,19 +10,20 @@ from agno.tools.yfinance import YFinanceTools
 # Load environment variables
 load_dotenv()
 
-# Update your Gemini model initialization to explicitly pass the API key
-from agno.models.google import Gemini
-
-# Get the API key from environment variables
+# Configure Gemini
 gemini_api_key = os.environ.get("GEMINI_API_KEY")
+if not gemini_api_key:
+    st.error("Missing GEMINI_API_KEY in environment variables")
+    st.stop()
+genai.configure(api_key=gemini_api_key)
 
-# Initialize models with the API key
+# Initialize agents with Gemini 1.5 Flash
 web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",
-    model=Gemini(id="gemini-2.0-flash", api_key=gemini_api_key),  # Pass API key here
+    model=Gemini(id="gemini-1.5-flash-latest"),
     tools=[DuckDuckGoTools()],
-    instructions="Always include sources",
+    instructions="Always include sources with URLs",
     show_tool_calls=True,
     markdown=True,
 )
@@ -30,66 +31,103 @@ web_agent = Agent(
 finance_agent = Agent(
     name="Finance Agent",
     role="Get financial data",
-    model=Gemini(id="gemini-pro", api_key=gemini_api_key),  # Pass API key here
+    model=Gemini(id="gemini-1.5-flash-latest"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True)],
-    instructions="Use tables to display data",
+    instructions="Use formatted tables with emojis for financial data",
     show_tool_calls=True,
     markdown=True,
 )
 
 agent_team = Agent(
     team=[web_agent, finance_agent],
-    model=Gemini(id="gemini-pro", api_key=gemini_api_key),  # Pass API key here
-    instructions=["Always include sources", "Use tables to display data"],
+    model=Gemini(id="gemini-1.5-flash-latest"),
+    instructions=[
+        "Combine web and financial data for comprehensive analysis",
+        "Always cite sources using [1] notation",
+        "Use 📈 and 📉 emojis in financial sections"
+    ],
     show_tool_calls=True,
     markdown=True,
 )
 
 # Streamlit UI setup
-st.set_page_config(page_title="Financial Analysis AI Assistant", page_icon="📊", layout="wide")
-st.title("Financial Analysis AI Assistant")
-st.markdown("This app uses AI agents to research financial markets and company performance using Google's Gemini Model.")
+st.set_page_config(page_title="Financial Analysis AI", page_icon="💹", layout="wide")
+st.title("💰 AI Financial Analyst")
+st.markdown("""
+    <style>
+    .stTextArea textarea {font-size: 18px !important;}
+    div[data-baseweb="input"] {border-radius: 10px !important;}
+    </style>
+    """, unsafe_allow_html=True)
 
-# Create a container to display agents' actions
+# Agent activity container
 agent_activity_container = st.container()
 
-# Custom callback handler to display what the agents are doing
+# Enhanced callback handler
 class StreamlitCallbackHandler:
     def __init__(self, container):
         self.container = container
+        self.thought_count = 0
+        self.action_count = 0
 
     def on_thought(self, agent_name, thought):
-        with self.container.expander(f"🤔 {agent_name} is thinking...", expanded=True):
-            st.write(thought)
+        self.thought_count += 1
+        with self.container.expander(f"🧠 {agent_name} Thought #{self.thought_count}", expanded=True):
+            st.markdown(f"```\n{thought}\n```")
 
     def on_action(self, agent_name, action, input_data):
-        with self.container.expander(f"⚡ {agent_name} is performing action: {action}", expanded=True):
-            st.write(f"🔍 Input: {input_data}")
+        self.action_count += 1
+        with self.container.expander(f"⚡ {agent_name} Action #{self.action_count}: {action}", expanded=False):
+            st.json(input_data, expanded=False)
 
     def on_action_result(self, agent_name, result):
-        with self.container.expander(f"✅ {agent_name} completed action", expanded=True):
-            st.write(result)
+        with self.container.expander(f"✅ {agent_name} Result", expanded=False):
+            if isinstance(result, dict):
+                st.json(result)
+            else:
+                st.markdown(result)
 
-# Initialize the callback handler
 callback_handler = StreamlitCallbackHandler(agent_activity_container)
 
-# User query input
-query = st.text_area("What financial information would you like to know?",
-                    "What's the market outlook and financial performance of AI semiconductor companies?",
-                    height=100)
+# Main interface
+col1, col2 = st.columns([3, 1])
+with col1:
+    query = st.text_area(
+        "📝 Ask about any company, stock, or market trend:",
+        "Analyze NVIDIA's recent stock performance and market position in AI semiconductors",
+        height=120
+    )
 
-# Analyze button
-if st.button("Analyze"):
+with col2:
+    st.markdown("### Settings")
+    temperature = st.slider("🧠 Creativity Level", 0.0, 1.0, 0.7)
+    detailed_analysis = st.checkbox("🔍 Detailed Report", True)
+
+if st.button("🚀 Start Analysis", use_container_width=True):
     if not query.strip():
-        st.warning("Please enter a query.")
+        st.warning("Please enter a question")
     else:
-        with st.spinner("Analyzing financial data..."):
-            response = agent_team.run(query, callbacks=[callback_handler])
-
-            # Display the response in Streamlit
-            st.subheader("📊 Analysis Result")
-            st.write(response.content)
+        with st.spinner("🔍 Gathering financial insights..."):
+            try:
+                response = agent_team.run(
+                    query,
+                    callbacks=[callback_handler],
+                    temperature=temperature,
+                    max_tokens=4000 if detailed_analysis else 2000
+                )
+                
+                st.subheader("📈 Analysis Report")
+                st.markdown("---")
+                st.markdown(response.content.replace("$", "\$"))  # Escape dollar signs for LaTeX
+                
+            except Exception as e:
+                st.error(f"⚠️ Analysis failed: {str(e)}")
+                st.stop()
 
 # Footer
 st.markdown("---")
-st.markdown("Powered by Agno and Google's Gemini Pro Model")
+st.markdown("""
+    <div style="text-align: center; color: gray;">
+    Powered by Gemini 1.5 Flash • Made with Agno Framework
+    </div>
+    """, unsafe_allow_html=True)
