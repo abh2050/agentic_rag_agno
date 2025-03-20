@@ -3,7 +3,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 import streamlit as st
 from agno.agent import Agent
-from agno.models.gemini import GeminiChat
+from agno.models.google import Gemini
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
 
@@ -19,7 +19,7 @@ if "GEMINI_API_KEY" not in os.environ:
 web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",
-    model=GeminiChat(id="gemini-2.0-flash"),
+    model=Gemini(id="gemini-2.0-flash"),  # Updated Gemini model version
     tools=[DuckDuckGoTools()],
     instructions="Always include sources",
     show_tool_calls=True,
@@ -29,7 +29,7 @@ web_agent = Agent(
 finance_agent = Agent(
     name="Finance Agent",
     role="Get financial data",
-    model=GeminiChat(id="gemini-2.0-flash"),
+    model=Gemini(id="gemini-pro"),  # Updated Gemini model version
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True)],
     instructions="Use tables to display data",
     show_tool_calls=True,
@@ -38,7 +38,7 @@ finance_agent = Agent(
 
 agent_team = Agent(
     team=[web_agent, finance_agent],
-    model=GeminiChat(id="gemini-2.0-flash"),
+    model=Gemini(id="gemini-pro"),  # Updated Gemini model version
     instructions=["Always include sources", "Use tables to display data"],
     show_tool_calls=True,
     markdown=True,
@@ -74,8 +74,8 @@ callback_handler = StreamlitCallbackHandler(agent_activity_container)
 
 # User query input
 query = st.text_area("What financial information would you like to know?",
-                     "What's the market outlook and financial performance of AI semiconductor companies?",
-                     height=100)
+                    "What's the market outlook and financial performance of AI semiconductor companies?",
+                    height=100)
 
 # Analyze button
 if st.button("Analyze"):
@@ -84,11 +84,11 @@ if st.button("Analyze"):
     else:
         with st.spinner("Analyzing financial data..."):
             response = agent_team.run(query, callbacks=[callback_handler])
-            
+
             # Display the response in Streamlit
             st.subheader("📊 Analysis Result")
             st.write(response.content)
 
 # Footer
 st.markdown("---")
-st.markdown("Powered by Agno and Google's Gemini Flash Model 2.0")
+st.markdown("Powered by Agno and Google's Gemini Pro Model")
